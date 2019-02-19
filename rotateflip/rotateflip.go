@@ -263,13 +263,13 @@ func rotateFlip(dst []uint8, dst_stride, dst_width, dst_height int, src []uint8,
 		}
 	} else {
 		for y := 0; y < src_height; y++ {
-			dst_pixel := dst_row
-			src_pixel := src_row
+			dst_pix := dst_row
+			src_pix := src_row
 
 			for x := 0; x < src_width; x++ {
-				copy(dst[dst_pixel:], src[src_pixel:src_pixel+bpp])
-				dst_pixel += dst_x_offset
-				src_pixel += bpp
+				copy(dst[dst_pix:], src[src_pix:src_pix+bpp])
+				dst_pix += dst_x_offset
+				src_pix += bpp
 			}
 
 			dst_row += dst_y_offset
@@ -288,7 +288,6 @@ func rotateBounds(bounds image.Rectangle, op Operation) image.Rectangle {
 		dy = bounds.Dy()
 	}
 	return image.Rectangle{image.ZP, image.Point{dx, dy}}
-
 }
 
 func rotateYCbCrSubsampleRatio(subsampleRatio image.YCbCrSubsampleRatio, bounds image.Rectangle, op Operation) (image.YCbCrSubsampleRatio, bool) {

@@ -35,7 +35,7 @@ func NYCbCrAUpsample(img *image.NYCbCrA) *image.NYCbCrA {
 func resample(dst []uint8, dstStride int, src []uint8, srcStride int, count int) {
 	var srcOffset, dstOffset int
 	for i := 0; i < count; i++ {
-		copy(dst[dstOffset:dstOffset+dstStride], src[srcOffset:srcOffset+dstStride])
+		copy(dst[dstOffset:dstOffset+dstStride], src[srcOffset:])
 		dstOffset += dstStride
 		srcOffset += srcStride
 	}
@@ -44,14 +44,25 @@ func resample(dst []uint8, dstStride int, src []uint8, srcStride int, count int)
 func upsample(src, dst *image.YCbCr) {
 	sx, sy := subsampleRatios(src.SubsampleRatio)
 
-	var i int
-	for y := src.Rect.Min.Y; y < src.Rect.Max.Y; y++ {
-		cy := (y/sy - src.Rect.Min.Y/sy) * src.CStride
-		for x := src.Rect.Min.X; x < src.Rect.Max.X; x++ {
-			j := cy + (x/sx - src.Rect.Min.X/sx)
-			dst.Cb[i] = src.Cb[j]
-			dst.Cr[i] = src.Cr[j]
-			i++
+	if sx == 0 {
+		var dst_row int
+		for y := src.Rect.Min.Y; y < src.Rect.Max.Y; y++ {
+			dst_end := dst_row + dst.CStride
+			src_row := (y/sy - src.Rect.Min.Y/sy) * src.CStride
+			copy(dst.Cb[dst_row:dst_end], src.Cb[src_row:])
+			copy(dst.Cr[dst_row:dst_end], src.Cr[src_row:])
+			dst_row = dst_end
+		}
+	} else {
+		var dst_pix int
+		for y := src.Rect.Min.Y; y < src.Rect.Max.Y; y++ {
+			src_row := (y/sy - src.Rect.Min.Y/sy) * src.CStride
+			for x := src.Rect.Min.X; x < src.Rect.Max.X; x++ {
+				src_pix := src_row + (x/sx - src.Rect.Min.X/sx)
+				dst.Cb[dst_pix] = src.Cb[src_pix]
+				dst.Cr[dst_pix] = src.Cr[src_pix]
+				dst_pix++
+			}
 		}
 	}
 }
