@@ -1,3 +1,3 @@
-# Rotate and flip images in Go.
+# Various Go image processing packages
 
-[![GoDoc](https://godoc.org/github.com/ncruces/rotateflip?status.svg)](https://godoc.org/github.com/ncruces/rotateflip)
+[![GoDoc](https://godoc.org/github.com/ncruces/go-image?status.svg)](https://godoc.org/github.com/ncruces/go-image)
