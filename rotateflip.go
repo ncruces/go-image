@@ -5,7 +5,8 @@
 // A fast path is used for most of the in-memory image types defined in that package.
 // An image of the same type is returned.
 //
-// A lazy, slow path, is used for other image types, as well as for YCbCrSubsampleRatio411 and YCbCrSubsampleRatio410 images.
+// A lazy, slow path, is used for other image types,
+// as well as for some subsampled YCbCr images.
 //
 // Example:
 //    exf := rotateflip.Orientation(exifOrientation)
@@ -88,8 +89,7 @@ func Image(src image.Image, op Operation) image.Image {
 		return src // nop
 	}
 
-	rotate := op&1 != 0
-	bounds := rotateBounds(src.Bounds(), rotate)
+	bounds := rotateBounds(src.Bounds(), op)
 
 	// fast path, eager
 	switch src := src.(type) {
@@ -144,21 +144,25 @@ func Image(src image.Image, op Operation) image.Image {
 		return dst
 
 	case *image.YCbCr:
-		if sr, ok := rotateYCbCrSubsampleRatio(src.SubsampleRatio, rotate); ok {
+		if sr, ok := rotateYCbCrSubsampleRatio(src.SubsampleRatio, src.Bounds(), op); ok {
 			dst := image.NewYCbCr(bounds, sr)
+			srcCBounds := subsampledBounds(src.Bounds(), src.SubsampleRatio)
+			dstCBounds := subsampledBounds(dst.Bounds(), dst.SubsampleRatio)
 			rotateFlip(dst.Y, dst.YStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Y, src.YStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
-			rotateFlip(dst.Cb, dst.CStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Cb, src.CStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
-			rotateFlip(dst.Cr, dst.CStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Cr, src.CStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
+			rotateFlip(dst.Cb, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cb, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
+			rotateFlip(dst.Cr, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cr, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
 			return dst
 		}
 
 	case *image.NYCbCrA:
-		if sr, ok := rotateYCbCrSubsampleRatio(src.SubsampleRatio, rotate); ok {
+		if sr, ok := rotateYCbCrSubsampleRatio(src.SubsampleRatio, src.Bounds(), op); ok {
 			dst := image.NewNYCbCrA(bounds, sr)
+			srcCBounds := subsampledBounds(src.Bounds(), src.SubsampleRatio)
+			dstCBounds := subsampledBounds(dst.Bounds(), dst.SubsampleRatio)
 			rotateFlip(dst.Y, dst.YStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Y, src.YStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
 			rotateFlip(dst.A, dst.AStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.A, src.AStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
-			rotateFlip(dst.Cb, dst.CStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Cb, src.CStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
-			rotateFlip(dst.Cr, dst.CStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Cr, src.CStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
+			rotateFlip(dst.Cb, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cb, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
+			rotateFlip(dst.Cr, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cr, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
 			return dst
 		}
 	}
@@ -177,7 +181,7 @@ func (rft *rotateFlipImage) ColorModel() color.Model {
 }
 
 func (rft *rotateFlipImage) Bounds() image.Rectangle {
-	return rotateBounds(rft.src.Bounds(), rft.op&1 != 0)
+	return rotateBounds(rft.src.Bounds(), rft.op)
 }
 
 func (rft *rotateFlipImage) At(x, y int) color.Color {
@@ -265,9 +269,9 @@ func rotateFlip(dst []uint8, dst_stride, dst_width, dst_height int, src []uint8,
 	}
 }
 
-func rotateBounds(bounds image.Rectangle, rotate bool) image.Rectangle {
+func rotateBounds(bounds image.Rectangle, op Operation) image.Rectangle {
 	var dx, dy int
-	if rotate {
+	if rotate := op&1 != 0; rotate {
 		dx = bounds.Dy()
 		dy = bounds.Dx()
 	} else {
@@ -278,19 +282,78 @@ func rotateBounds(bounds image.Rectangle, rotate bool) image.Rectangle {
 
 }
 
-func rotateYCbCrSubsampleRatio(subsampleRatio image.YCbCrSubsampleRatio, rotate bool) (image.YCbCrSubsampleRatio, bool) {
-	if rotate {
-		switch subsampleRatio {
-		default:
-			return 0, false
-		case image.YCbCrSubsampleRatio422:
-			return image.YCbCrSubsampleRatio440, true
-		case image.YCbCrSubsampleRatio440:
-			return image.YCbCrSubsampleRatio422, true
-		case image.YCbCrSubsampleRatio444, image.YCbCrSubsampleRatio420:
+func rotateYCbCrSubsampleRatio(subsampleRatio image.YCbCrSubsampleRatio, bounds image.Rectangle, op Operation) (image.YCbCrSubsampleRatio, bool) {
+	switch subsampleRatio {
+	case image.YCbCrSubsampleRatio444:
+		return subsampleRatio, true
+
+	case image.YCbCrSubsampleRatio420:
+		if (bounds.Min.X|bounds.Max.X|bounds.Min.Y|bounds.Max.Y)&1 != 0 {
+			break
 		}
+		return subsampleRatio, true
+
+	case image.YCbCrSubsampleRatio422:
+		if (bounds.Min.X|bounds.Max.X)&1 != 0 {
+			break
+		}
+		if rotate := op&1 != 0; rotate {
+			return image.YCbCrSubsampleRatio440, true
+		}
+		return subsampleRatio, true
+
+	case image.YCbCrSubsampleRatio440:
+		if (bounds.Min.Y|bounds.Max.Y)&1 != 0 {
+			break
+		}
+		if rotate := op&1 != 0; rotate {
+			return image.YCbCrSubsampleRatio422, true
+		}
+		return subsampleRatio, true
+
+	case image.YCbCrSubsampleRatio411, image.YCbCrSubsampleRatio410:
+		if (bounds.Min.X|bounds.Max.X)&3 != 0 {
+			break
+		}
+		if (bounds.Min.Y|bounds.Max.Y)&1 != 0 {
+			break
+		}
+		if rotate := op&1 != 0; rotate {
+			break
+		}
+		return subsampleRatio, true
 	}
-	return subsampleRatio, true
+
+	return -1, false
+}
+
+func subsampledBounds(bounds image.Rectangle, subsampleRatio image.YCbCrSubsampleRatio) image.Rectangle {
+	switch subsampleRatio {
+	default:
+		panic("Unknown YCbCrSubsampleRatio")
+	case image.YCbCrSubsampleRatio440:
+		bounds.Min.Y = (bounds.Min.Y + 0) / 2
+		bounds.Max.Y = (bounds.Max.Y + 1) / 2
+		fallthrough
+	case image.YCbCrSubsampleRatio444:
+
+	case image.YCbCrSubsampleRatio420:
+		bounds.Min.Y = (bounds.Min.Y + 0) / 2
+		bounds.Max.Y = (bounds.Max.Y + 1) / 2
+		fallthrough
+	case image.YCbCrSubsampleRatio422:
+		bounds.Min.X = (bounds.Min.X + 0) / 2
+		bounds.Max.X = (bounds.Max.X + 1) / 2
+
+	case image.YCbCrSubsampleRatio410:
+		bounds.Min.Y = (bounds.Min.Y + 0) / 2
+		bounds.Max.Y = (bounds.Max.Y + 1) / 2
+		fallthrough
+	case image.YCbCrSubsampleRatio411:
+		bounds.Min.X = (bounds.Min.X + 0) / 4
+		bounds.Max.X = (bounds.Max.X + 3) / 4
+	}
+	return bounds
 }
 
 func parity(op Operation) bool {
