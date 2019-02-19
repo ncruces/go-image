@@ -3,10 +3,9 @@
 // The package works with the Image interface described in the image package.
 //
 // A fast path is used for most of the in-memory image types defined in that package.
-// An image of the same type is returned.
+// An image of the same type is returned (chroma subsampling may change).
 //
-// A lazy, slow path, is used for other image types,
-// as well as for some subsampled YCbCr images.
+// A lazy, slow path, is used for other image types.
 //
 // Example:
 //    exf := rotateflip.Orientation(exifOrientation)
@@ -16,6 +15,8 @@ package rotateflip
 import (
 	"image"
 	"image/color"
+
+	"github.com/ncruces/go-image/imageutil"
 )
 
 // Operation specifies a clockwise rotation and flip operation to apply to an image.
@@ -144,27 +145,35 @@ func Image(src image.Image, op Operation) image.Image {
 		return dst
 
 	case *image.YCbCr:
-		if sr, ok := rotateYCbCrSubsampleRatio(src.SubsampleRatio, src.Bounds(), op); ok {
-			dst := image.NewYCbCr(bounds, sr)
-			srcCBounds := subsampledBounds(src.Bounds(), src.SubsampleRatio)
-			dstCBounds := subsampledBounds(dst.Bounds(), dst.SubsampleRatio)
-			rotateFlip(dst.Y, dst.YStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Y, src.YStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
-			rotateFlip(dst.Cb, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cb, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
-			rotateFlip(dst.Cr, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cr, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
-			return dst
+		sr, ok := rotateYCbCrSubsampleRatio(src.SubsampleRatio, src.Bounds(), op)
+		if !ok {
+			src = imageutil.YCbCrUpsample(src)
+			sr = src.SubsampleRatio
 		}
 
+		dst := image.NewYCbCr(bounds, sr)
+		srcCBounds := subsampledBounds(src.Bounds(), src.SubsampleRatio)
+		dstCBounds := subsampledBounds(dst.Bounds(), dst.SubsampleRatio)
+		rotateFlip(dst.Y, dst.YStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Y, src.YStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
+		rotateFlip(dst.Cb, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cb, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
+		rotateFlip(dst.Cr, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cr, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
+		return dst
+
 	case *image.NYCbCrA:
-		if sr, ok := rotateYCbCrSubsampleRatio(src.SubsampleRatio, src.Bounds(), op); ok {
-			dst := image.NewNYCbCrA(bounds, sr)
-			srcCBounds := subsampledBounds(src.Bounds(), src.SubsampleRatio)
-			dstCBounds := subsampledBounds(dst.Bounds(), dst.SubsampleRatio)
-			rotateFlip(dst.Y, dst.YStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Y, src.YStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
-			rotateFlip(dst.A, dst.AStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.A, src.AStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
-			rotateFlip(dst.Cb, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cb, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
-			rotateFlip(dst.Cr, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cr, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
-			return dst
+		sr, ok := rotateYCbCrSubsampleRatio(src.SubsampleRatio, src.Bounds(), op)
+		if !ok {
+			src = imageutil.NYCbCrAUpsample(src)
+			sr = src.SubsampleRatio
 		}
+
+		dst := image.NewNYCbCrA(bounds, sr)
+		srcCBounds := subsampledBounds(src.Bounds(), src.SubsampleRatio)
+		dstCBounds := subsampledBounds(dst.Bounds(), dst.SubsampleRatio)
+		rotateFlip(dst.Y, dst.YStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.Y, src.YStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
+		rotateFlip(dst.A, dst.AStride, dst.Bounds().Dx(), dst.Bounds().Dy(), src.A, src.AStride, src.Bounds().Dx(), src.Bounds().Dy(), op, 1)
+		rotateFlip(dst.Cb, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cb, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
+		rotateFlip(dst.Cr, dst.CStride, dstCBounds.Dx(), dstCBounds.Dy(), src.Cr, src.CStride, srcCBounds.Dx(), srcCBounds.Dy(), op, 1)
+		return dst
 	}
 
 	// slow path, lazy

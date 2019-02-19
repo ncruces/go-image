@@ -12,17 +12,11 @@ func Test_Image(t *testing.T) {
 	var subsample string
 	rect := image.Rect(0, 0, 16, 16)
 
-	init := func(pix []uint8) {
-		for i := range pix {
-			pix[i] = uint8(rand.Int63())
-		}
-	}
-
 	testSub := func(img image.Image, op Operation) {
 		rf1 := Image(img, op)
 		rf2 := Image(&wrapper{img}, op)
-		bounds := rf1.Bounds()
 
+		bounds := rf1.Bounds()
 		if bounds != rf2.Bounds() {
 			t.Errorf("%T%s/%d: bounds don't match", img, subsample, op)
 		}
@@ -55,52 +49,52 @@ func Test_Image(t *testing.T) {
 
 	{
 		img := image.NewAlpha(rect)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 	{
 		img := image.NewAlpha16(rect)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 	{
 		img := image.NewCMYK(rect)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 	{
 		img := image.NewGray(rect)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 	{
 		img := image.NewGray16(rect)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 	{
 		img := image.NewNRGBA(rect)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 	{
 		img := image.NewNRGBA64(rect)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 	{
 		img := image.NewRGBA(rect)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 	{
 		img := image.NewRGBA64(rect)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 	{
 		img := image.NewPaletted(rect, palette.Plan9)
-		init(img.Pix)
+		random(img.Pix)
 		testImg(img)
 	}
 
@@ -108,19 +102,25 @@ func Test_Image(t *testing.T) {
 		subsample = "(" + sr.String() + ")"
 		{
 			img := image.NewYCbCr(rect, sr)
-			init(img.Y)
-			init(img.Cb)
-			init(img.Cr)
+			random(img.Y)
+			random(img.Cb)
+			random(img.Cr)
 			testImg(img)
 		}
 		{
 			img := image.NewNYCbCrA(rect, sr)
-			init(img.Y)
-			init(img.Cb)
-			init(img.Cr)
-			init(img.A)
+			random(img.Y)
+			random(img.Cb)
+			random(img.Cr)
+			random(img.A)
 			testImg(img)
 		}
+	}
+}
+
+func random(pix []uint8) {
+	for i := range pix {
+		pix[i] = uint8(rand.Int63())
 	}
 }
 
