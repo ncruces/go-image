@@ -32,23 +32,23 @@ func NYCbCrAUpsample(img *image.NYCbCrA) *image.NYCbCrA {
 	return dst
 }
 
-func resample(dst []uint8, dstStride int, src []uint8, srcStride int, count int) {
-	var srcOffset, dstOffset int
+func resample(dst []uint8, dst_stride int, src []uint8, src_stride int, count int) {
+	var dst_row, src_row int
 	for i := 0; i < count; i++ {
-		copy(dst[dstOffset:dstOffset+dstStride], src[srcOffset:])
-		dstOffset += dstStride
-		srcOffset += srcStride
+		copy(dst[dst_row:dst_row+dst_stride], src[src_row:])
+		dst_row += dst_stride
+		src_row += src_stride
 	}
 }
 
 func upsample(src, dst *image.YCbCr) {
-	sx, sy := subsampleRatios(src.SubsampleRatio)
+	sx, sy := subsampleShifts(src.SubsampleRatio)
 
 	if sx == 0 {
 		var dst_row int
 		for y := src.Rect.Min.Y; y < src.Rect.Max.Y; y++ {
 			dst_end := dst_row + dst.CStride
-			src_row := (y/sy - src.Rect.Min.Y/sy) * src.CStride
+			src_row := (y>>sy - src.Rect.Min.Y>>sy) * src.CStride
 			copy(dst.Cb[dst_row:dst_end], src.Cb[src_row:])
 			copy(dst.Cr[dst_row:dst_end], src.Cr[src_row:])
 			dst_row = dst_end
@@ -56,9 +56,9 @@ func upsample(src, dst *image.YCbCr) {
 	} else {
 		var dst_pix int
 		for y := src.Rect.Min.Y; y < src.Rect.Max.Y; y++ {
-			src_row := (y/sy - src.Rect.Min.Y/sy) * src.CStride
+			src_row := (y>>sy-src.Rect.Min.Y>>sy)*src.CStride - src.Rect.Min.X>>sx
 			for x := src.Rect.Min.X; x < src.Rect.Max.X; x++ {
-				src_pix := src_row + (x/sx - src.Rect.Min.X/sx)
+				src_pix := src_row + x>>sx
 				dst.Cb[dst_pix] = src.Cb[src_pix]
 				dst.Cr[dst_pix] = src.Cr[src_pix]
 				dst_pix++
@@ -67,20 +67,20 @@ func upsample(src, dst *image.YCbCr) {
 	}
 }
 
-func subsampleRatios(subsampleRatio image.YCbCrSubsampleRatio) (sx, sy int) {
+func subsampleShifts(subsampleRatio image.YCbCrSubsampleRatio) (sx, sy uint8) {
 	switch subsampleRatio {
 	case image.YCbCrSubsampleRatio444:
-		return 1, 1
+		return 0, 0
 	case image.YCbCrSubsampleRatio422:
-		return 2, 1
+		return 1, 0
 	case image.YCbCrSubsampleRatio420:
-		return 2, 2
+		return 1, 1
 	case image.YCbCrSubsampleRatio440:
-		return 1, 2
+		return 0, 1
 	case image.YCbCrSubsampleRatio411:
-		return 4, 1
+		return 2, 0
 	case image.YCbCrSubsampleRatio410:
-		return 4, 2
+		return 2, 1
 	}
 	panic("Unknown YCbCrSubsampleRatio")
 }

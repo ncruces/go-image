@@ -2,7 +2,7 @@
 //
 // The package works with the Image interface described in the image package.
 //
-// A fast path is used for most of the in-memory image types defined in that package.
+// A fast path is used for all of the in-memory image types defined in that package.
 // An image of the same type is returned (chroma subsampling may change).
 //
 // A lazy, slow path, is used for other image types.
