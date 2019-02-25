@@ -84,9 +84,9 @@ func SRGB8ToLinear(srgb uint8) uint16 {
 // error within -1 and +1.
 func SRGB16ToLinear(srgb uint16) uint16 {
 	// piecewise linear
-	div, mod := divmod257(int(srgb))
-	s0 := int(s8l16[div])
-	s1 := int(s8l16[div257(int(srgb)+256)])
+	div, mod := divmod257(uint32(srgb))
+	s0 := uint32(s8l16[uint8(div)])
+	s1 := uint32(s8l16[uint8(div+1)])
 	// correctly rounded forward LUT overestimates result
 	si := s0 + div257bias(mod*(s1-s0), 0x4cb34c00)
 	return uint16(si)
@@ -96,8 +96,12 @@ func SRGB16ToLinear(srgb uint16) uint16 {
 // Returns the correctly rounded result for 99.8% of inputs,
 // error within -1 and +1.
 func LinearToSRGB8(lin uint16) uint8 {
-	srgb := int(LinearToSRGB16(lin))
-	return uint8(div257rnd(srgb))
+	// piecewise linear
+	div, mod := divmod257(uint32(lin))
+	l0 := uint32(l8s16[uint8(div)])
+	l1 := uint32(l8s16[uint8(div+1)])
+	li := 257*l0 + mod*(l1-l0)
+	return uint8(divsqr257rnd(li))
 }
 
 // Fast 16-bit linear to 8-bit sRGB conversion.
@@ -105,43 +109,48 @@ func LinearToSRGB8(lin uint16) uint8 {
 // error within -58 and +58 (from 8192, within -1 and +1).
 func LinearToSRGB16(lin uint16) uint16 {
 	// piecewise linear
-	div, mod := divmod257(int(lin))
-	l0 := int(l8s16[div])
-	l1 := int(l8s16[div257(int(lin)+256)])
+	div, mod := divmod257(uint32(lin))
+	l0 := uint32(l8s16[uint8(div)])
+	l1 := uint32(l8s16[uint8(div+1)])
 	li := l0 + div257rnd(mod*(l1-l0))
 	return uint16(li)
 }
 
-// valid for [0..16777215]
-func div257(x int) int {
-	mul := uint64(x) * 0xff0100
-	div := mul >> 32
-	return int(div)
+// valid for x=[0..256*65535[
+func div257(x uint32) uint32 {
+	return div257bias(x, 0)
 }
 
-// valid for [0..16777215]
-func mod257(x int) int {
-	mul := uint64(x) * 0xff0100
-	mod := uint64(uint32(mul)) * 257 >> 32
-	return int(mod)
+// valid for x=[0..256*65535[
+func div257rnd(x uint32) uint32 {
+	return div257bias(x+128, 0)
 }
 
-// valid for [0..16777215]
-func divmod257(x int) (int, int) {
-	mul := uint64(x) * 0xff0100
-	mod := uint64(uint32(mul)) * 257 >> 32
-	div := mul >> 32
-	return int(div), int(mod)
-}
-
-// valid for [0..16777215]
-func div257rnd(x int) int {
-	return div257bias(x, 0x7f807fff)
-}
-
-// valid for [0..16777215]
-func div257bias(x, bias int) int {
+// valid for x=[0..256*65535[, bias=[0..0xff010000[
+func div257bias(x, bias uint32) uint32 {
 	mul := uint64(x)*0xff0100 + uint64(bias)
 	div := mul >> 32
-	return int(div)
+	return uint32(div)
+}
+
+// valid for x=[0..256*65535[
+func mod257(x uint32) uint32 {
+	mul := x * 0xff0100
+	mod := uint64(mul) * 257 >> 32
+	return uint32(mod)
+}
+
+// valid for x=[0..256*65535[
+func divmod257(x uint32) (uint32, uint32) {
+	mul := uint64(x) * 0xff0100
+	mod := uint64(uint32(mul)) * 257 >> 32
+	div := mul >> 32
+	return uint32(div), uint32(mod)
+}
+
+// valid for x=[0..257*65535[
+func divsqr257rnd(x uint32) uint32 {
+	mul := uint64(x+0x8100) * 0x1fc05f9
+	div := mul >> 41
+	return uint32(div)
 }
