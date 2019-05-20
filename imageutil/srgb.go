@@ -104,7 +104,7 @@ func LinearToSRGB8(lin uint16) uint8 {
 	return uint8(divsqr257rnd(li))
 }
 
-// Fast 16-bit linear to 8-bit sRGB conversion.
+// Fast 16-bit linear to 16-bit sRGB conversion.
 // Returns the correctly rounded result for 74.6% of inputs,
 // error within -58 and +58 (from 8192, within -1 and +1).
 func LinearToSRGB16(lin uint16) uint16 {
